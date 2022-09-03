@@ -19,7 +19,7 @@ Then you can launch the terminal in that folder and set up an instance.
 
 ## Setting up an instance
 
-Uising the [getting started](https://google.github.io/mediapipe/getting_started/python) instructions. 
+Using the [getting started](https://google.github.io/mediapipe/getting_started/python) instructions. 
 
 Calling the virtual environment `venv` is a convention...
 
