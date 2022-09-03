@@ -8,9 +8,18 @@ This document describes the process of setting up a virtual environment (inside 
 
 - clone to a local folder
 
-- launch terminal in that folder
+- edit *.gitignore* to include everything in the hidden folder *.venv/*
+
+```
+# Exclude files from virtual environment
+.venv/
+```
+
+Then you can launch the terminal in that folder and set up an instance.
 
 ## Setting up an instance
+
+Uising the [getting started](https://google.github.io/mediapipe/getting_started/python) instructions. 
 
 Calling the virtual environment `venv` is a convention...
 
@@ -22,7 +31,7 @@ python3 -m venv ./.venv
 source .venv/bin/activate
 
 
-#leave that environment
+# (leave an environment)
 deactivate
 ```
 
@@ -32,6 +41,19 @@ you can check out where the local python and pip binaries live:
 which python
 which pip
 ```
+
+Enter the pyton interpreter:
+
+```python
+python3
+
+# (leave the interpreter)
+>>> exit()
+```
+
+
+
+Troubleshooting
 
 I encountered an error when attempting to install **mediapipe** that seems to have to do with my python version...
 
