@@ -59,7 +59,6 @@ pip install numpy
 
 # launch Visual Studio Code using the command included in PATH
 code .
-
 ```
 
 Once in *Visual Studio Code*, create a new *Jupyter* notebook:
@@ -70,7 +69,7 @@ Once in *Visual Studio Code*, create a new *Jupyter* notebook:
 
 - Save with an appropriate name (inside the git folder)
 
-- Test tha everything is fine by running:
+- Test that everything is fine by running:
 
 ```python
 test = 1
@@ -79,10 +78,16 @@ test = 1
 # alternatively: Shift + Return
 ```
 
-If everytgin seems fine, we can start with the notebook:
+If everything seems fine, we can start working in the notebook :)
+
+
+
+### OSC in Python
+
+In order to send/receive OSC data (according to this online documentation: [python-osc · PyPI](https://pypi.org/project/python-osc/)).
 
 ```python
-import mediapipe as mp
+pip install python-osc
 ```
 
 
@@ -96,8 +101,6 @@ python3
 # (leave the interpreter)
 >>> exit()
 ```
-
-
 
 Troubleshooting
 
