@@ -1,0 +1,99 @@
+# MediaPipe
+
+This document describes the process of setting up a virtual environment (inside a repo) to run the MediaPipe for python.
+
+## Make a (repo)folder
+
+- Create a repo in bitbucket
+
+- clone to a local folder
+
+- launch terminal in that folder
+
+## Setting up an instance
+
+Calling the virtual environment `venv` is a convention...
+
+```python
+# create a python instance
+# createing it in a hidden folder is a convention for better version control.
+# the folder ./.venv (I assume) will be included in .gitignore
+python3 -m venv ./.venv
+source .venv/bin/activate
+
+
+#leave that environment
+deactivate
+```
+
+you can check out where the local python and pip binaries live:
+
+```python
+which python
+which pip
+```
+
+I encountered an error when attempting to install **mediapipe** that seems to have to do with my python version...
+
+```python
+# trying to instal mediapipe
+pip install mediapipe
+
+# error message
+ERROR: Could not find a version that satisfies the requirement mediapipe (from versions: none)
+ERROR: No matching distribution found for mediapipe
+```
+
+in order to find out my python version:
+
+```python
+python --version
+```
+
+*(my version shows to be Python 3.9.12)*
+
+Trying to fix the issue using `virtualenv` instead of `venv`, which seems to allow me to set the python version to the accepted 3.7.0.
+
+```python
+# install virtualenv
+virtualenv -p python3.7 mp_env
+
+#create instance with specific python version
+virtualenv -p python3.7 mp_env
+source .mp_env/bin/activate
+```
+
+This environment is set to 3.7.0 version of python, yet the problem persists.
+
+```python
+# Another try to create an environment, this time with venv
+python3.7 -m venv ./.venv37
+source .venv37/bin/activate
+```
+
+I'll try installing MediaPipe fro MacOs first, according to these instructions:
+
+[MediaPipe#installing-on-macos](https://google.github.io/mediapipe/getting_started/install.html#installing-on-macos)
+
+### How to find out my local python architecture (32/64 bits)
+
+Go into python console by typin `python` in the terminal (inside /MediaPipe folder)
+
+```python
+#go into python console
+python
+
+# exectute commands to get python's architecture
+import platform
+platform.architecture()[0]
+
+
+# leave the python console
+exit()
+```
+
+____
+
+# To-Do
+
+- Adapt to the Effects format
