@@ -66,17 +66,31 @@ Once in *Visual Studio Code*, create a new *Jupyter* notebook:
 
 - New file (Jupyter)
 
-- Set kernel to the python local installation (inside .venv/)
+- Set kernel to the python local installation: **.venv/ (Python 3.7.0)**
 
 - Save with an appropriate name (inside the git folder)
 
-
-
-
-
-Enter the pyton interpreter:
+- Test tha everything is fine by running:
 
 ```python
+test = 1
+
+# hit the run icon on the left
+# alternatively: Shift + Return
+```
+
+If everytgin seems fine, we can start with the notebook:
+
+```python
+import mediapipe as mp
+```
+
+
+
+### Using the python interpreter:
+
+```python
+# Enter the python interpreter
 python3
 
 # (leave the interpreter)
