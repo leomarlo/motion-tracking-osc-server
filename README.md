@@ -40,7 +40,39 @@ you can check out where the local python and pip binaries live:
 ```python
 which python
 which pip
+
+
+# in order to check the versions:
+python --version
+pip --version
 ```
+
+Just for the fun of it, we may want to install a jupyter notebook:
+
+```python
+pip install jupyter
+
+
+# numpy is already included in jupyter, otherwise:
+pip install numpy
+
+
+# launch Visual Studio Code using the command included in PATH
+code .
+
+```
+
+Once in *Visual Studio Code*, create a new *Jupyter* notebook:
+
+- New file (Jupyter)
+
+- Set kernel to the python local installation (inside .venv/)
+
+- Save with an appropriate name (inside the git folder)
+
+
+
+
 
 Enter the pyton interpreter:
 
