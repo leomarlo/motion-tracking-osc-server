@@ -50,3 +50,6 @@ Thumbs.db
 
 # Exclude files from virtual environment
 .venv/
+
+# Exclude AbletonLive backups
+Live/Ganzer_session\ Project/Backup/*.als
