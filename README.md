@@ -163,6 +163,20 @@ platform.architecture()[0]
 exit()
 ```
 
+## Saving Requirements
+
+When adding a new package, freeze the requirements into the `requirements.txt` file:
+```
+pip freeze > requirements.txt
+```
+
+Then when loading the new packages run:
+```
+pip install -r requirements.txt
+```
+
+
+
 ____
 
 # To-Do
