@@ -168,3 +168,9 @@ ____
 # To-Do
 
 - Adapt to the Effects format
+
+
+# Contributors
+
+Adrian,
+Leo
