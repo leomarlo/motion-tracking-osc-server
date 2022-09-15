@@ -4,11 +4,10 @@ from socket import socket, AF_INET, SOCK_DGRAM, gethostname
 class CONFIG:
     clientIP = "192.168.0.46"
     localhost = "127.0.0.1"
-    myIP = "192.168.0.45hallo" # "127.0.0.1"
+    myIP = "192.168.0.45" # "127.0.0.1"
     myHostName = ""
     serverPort = 53535
     clientPort = 53535
-
     ONLY_RECEIVE = False
 
     # def __init__(self) -> None:
@@ -26,10 +25,12 @@ class CONFIG:
 
     def localTesting():
         CONFIG.myIP = CONFIG.localhost
+
+    def updteClientIP(clientIP):
+        CONFIG.clientIP = clientIP
 # config = CONFIG()
 # config.init()
 # CONFIG.init()
-# print(CONFIG.myHostName, CONFIG.myIP)
 
 # from netifaces import interfaces, ifaddresses, AF_INET
 # for ifaceName in interfaces():
