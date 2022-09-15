@@ -90,6 +90,11 @@ In order to send/receive OSC data (according to this online documentation: [pyth
 pip install python-osc
 ```
 
+If you want to run the server just execute:
+```
+python server/blockingServer.py
+```
+
 
 
 ### Using the python interpreter:
