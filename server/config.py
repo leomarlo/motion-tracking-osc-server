@@ -6,8 +6,10 @@ class CONFIG:
     localhost = "127.0.0.1"
     myIP = "192.168.0.45hallo" # "127.0.0.1"
     myHostName = ""
-    serverPort = 9999
+    serverPort = 53535
     clientPort = 53535
+
+    ONLY_RECEIVE = False
 
     # def __init__(self) -> None:
     #     pass
@@ -19,10 +21,15 @@ class CONFIG:
         CONFIG.myHostName = hostName
         CONFIG.myIP = s.getsockname()[0]
 
+    def onlyReceive():
+        CONFIG.ONLY_RECEIVE = True
+
+    def localTesting():
+        CONFIG.myIP = CONFIG.localhost
 # config = CONFIG()
 # config.init()
 # CONFIG.init()
-print(CONFIG.myHostName, CONFIG.myIP)
+# print(CONFIG.myHostName, CONFIG.myIP)
 
 # from netifaces import interfaces, ifaddresses, AF_INET
 # for ifaceName in interfaces():

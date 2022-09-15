@@ -3,6 +3,9 @@ from pythonosc.osc_server import BlockingOSCUDPServer
 from pythonosc.udp_client import SimpleUDPClient
 from config import CONFIG
 CONFIG.loadMyIP()
+## ONLY FOR TESTING. DONT CALL THIS FUNCTION OTHERWISE
+# CONFIG.onlyReceive()
+# CONFIG.localTesting()
 
 client = SimpleUDPClient(CONFIG.clientIP, CONFIG.clientPort) 
 
@@ -14,7 +17,10 @@ def print_handler(address, *args):
 
 def default_handler(address, *args):
     print(f"DEFAULT {address}: {args}")
-    client.send_message("/some/address", "something") 
+    if CONFIG.ONLY_RECEIVE:
+        return
+    if args[0] == 'tilts':
+        client.send_message(address, (args[1], args[2])) 
 
 
 dispatcher = Dispatcher()
