@@ -9,6 +9,8 @@ class CONFIG:
     serverPort = 53535
     clientPort = 53535
     ONLY_RECEIVE = False
+    STOP_SERVER = False
+    verbosity = 2
 
     # def __init__(self) -> None:
     #     pass
@@ -28,6 +30,9 @@ class CONFIG:
 
     def updteClientIP(clientIP):
         CONFIG.clientIP = clientIP
+
+    def stopServer():
+        CONFIG.STOP_SERVER = True
 # config = CONFIG()
 # config.init()
 # CONFIG.init()
