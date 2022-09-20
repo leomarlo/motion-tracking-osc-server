@@ -6,8 +6,8 @@ class CONFIG:
     localhost = "127.0.0.1"
     myIP = "192.168.0.45" # "127.0.0.1"
     myHostName = ""
-    serverPort = 53535
-    clientPort = 53535
+    serverPort = 53534
+    clientPort = 53534
     ONLY_RECEIVE = False
     STOP_SERVER = False
     verbosity = 2
@@ -17,10 +17,12 @@ class CONFIG:
 
     def loadMyIP():
         s = socket(AF_INET, SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
+        s.connect(("10.0.0.1", 8080))
         hostName = gethostname()
         CONFIG.myHostName = hostName
         CONFIG.myIP = s.getsockname()[0]
+        print('my ip is: ', CONFIG.myIP)
+        # CONFIG.myIP = '192.168.2.56' 
 
     def onlyReceive():
         CONFIG.ONLY_RECEIVE = True

@@ -48,7 +48,7 @@ Thumbs.db
 *.flv
 *.mov
 *.wmv
-.csv
+*.csv
 
 # Exclude files from virtual environment
 .venv/

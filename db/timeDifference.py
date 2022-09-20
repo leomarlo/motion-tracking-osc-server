@@ -1,12 +1,10 @@
 
 from sqlalchemy import Column, ForeignKey, Integer, String
-# from sqlalchemy.orm import relationship
-# from sqlalchemy import create_engine
 from db.base import Base
 
 
-class Time(Base):
-    __tablename__ = 'time'
+class TimeDifference(Base):
+    __tablename__ = 'timedifference'
     id = Column(Integer, primary_key=True)
     time = Column(Integer, nullable=False)
     name = Column(String(250), nullable=False)
