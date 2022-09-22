@@ -47,14 +47,14 @@ def change_client(address, *args):
 
 def start_capture(address, *args):
     MediaPipe.startCapture(0)
-    MediaPipe.handleCapture()
+    MediaPipe.handleCapture(with_drawing_landmarks=(args[0]==1))
 
 def stop_capture(address, *args):
-    print( MediaPipe.cap.isOpen())
+    # print( MediaPipe.cap.isOpen())
     MediaPipe.stopCapture()
-    print( MediaPipe.cap.isOpen())
+    # print( MediaPipe.cap.isOpen())
     MediaPipe.cap.release()
-    print( MediaPipe.cap.isOpen())
+    # print( MediaPipe.cap.isOpen())
 
 
 def stop_server(address, *args):
