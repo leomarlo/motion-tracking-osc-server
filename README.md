@@ -162,6 +162,8 @@ python index.py
 
 this...
 
+Change the ClienIP and port in ``server_config.py``.
+
 ```python
 python index.py
 
@@ -209,6 +211,7 @@ ____
 # To-Do
 
 - Adapt to the Effects format
+- have the csv pulled from the GDrive (script)
 
 # Contributors
 
