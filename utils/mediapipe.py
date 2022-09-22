@@ -44,15 +44,29 @@ class MediaPipe:
         "size": 0
       },
       "MIDI_MAX": 127,
-      "SIGMOID_MAX": 5
-      
+      "SIGMOID_MAX": 5,
+      "CAPTURE_INDEX": 0,
+      "SHOW_WINDOW": True
     }
 
     def startCapture(*args):
+        MediaPipe.cache["SHOW_WINDOW"] = (args[0]==1)
+        if MediaPipe.cache["SHOW_WINDOW"]:
+          MediaPipe.createWindow()
         MediaPipe.cap = cv2.VideoCapture(0)
     
     def stopCapture():
         MediaPipe.cap.release()
+        if MediaPipe.cache["SHOW_WINDOW"]:
+          MediaPipe.destroyWindow()
+        MediaPipe.cache["CAPTURE_INDEX"] += 1
+
+    def createWindow():
+        cv2.namedWindow("Pose" + str(MediaPipe.cache["CAPTURE_INDEX"]), cv2.WINDOW_AUTOSIZE)
+
+    def destroyWindow():
+        # cv2.destroyAllWindows()
+        cv2.destroyWindow("Pose"  + str(MediaPipe.cache["CAPTURE_INDEX"]))
 
     def handleCapture(with_drawing_landmarks=True):
         k = 0
@@ -79,7 +93,7 @@ class MediaPipe:
                     results.pose_landmarks,
                     mp_pose.POSE_CONNECTIONS,
                     landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
-                cv2.imshow('MediaPipe Pose', cv2.flip(image, 1))
+                cv2.imshow("Pose" + str(MediaPipe.cache["CAPTURE_INDEX"]), cv2.flip(image, 1))
                 if (cv2.waitKey(5) & 0xFF == 27):
                   break
             

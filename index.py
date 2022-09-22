@@ -34,9 +34,6 @@ Client.setClient(CONFIG.clientIP, CONFIG.clientPort)
 if CONFIG.verbosity>1:
     print(CONFIG.myHostName, CONFIG.myIP, CONFIG.ONLY_RECEIVE)
 
-
-
-
 def print_client_port_and_address(address, *args):
     print("The ip address is {adr} and the port is {port}".format(adr=Client.client._address, port=Client.client._port))
 
@@ -53,7 +50,7 @@ def stop_capture(address, *args):
     # print( MediaPipe.cap.isOpen())
     MediaPipe.stopCapture()
     # print( MediaPipe.cap.isOpen())
-    MediaPipe.cap.release()
+    # MediaPipe.cap.release()
     # print( MediaPipe.cap.isOpen())
 
 
@@ -91,12 +88,11 @@ server = ThreadingOSCUDPServer((CONFIG.myIP, CONFIG.serverPort), dispatcher)
 server.serve_forever()  # Blocks forever
 
 
-
-# async def loop():
-#     """When this loop stops, the server will stop too"""
-#     while not CONFIG.STOP_SERVER:
-#         print("hello!")
-#         await asyncio.sleep(3)
+async def loop():
+    """When this loop stops, the server will stop too"""
+    while not CONFIG.STOP_SERVER:
+        print("hello!")
+        await asyncio.sleep(3)
 
 # async def init_main():
 #     server = AsyncIOOSCUDPServer((CONFIG.myIP, CONFIG.serverPort), dispatcher, asyncio.get_event_loop())
