@@ -160,18 +160,31 @@ python index.py
 
 ### Operating
 
-this...
+The udp port ``53534``is kinda fix, and refers to the computer (ip) where the script is running. The *ClientIP* is where the landm,arks, reading, results... etc. are sent.
 
 Change the ClienIP and port in ``server_config.py``.
 
 ```python
 python index.py
-
 ```
 
+Within that script, the following commands (accessible via OSC) are implemented. All of them can be run using the following osc message syntax:
+
+``sendosc [Client IPadress] [Client port] /Command [optional: i 1]``
 
 
 
+#### Start Capture
+
+Value *1* enables video on screen. Zero disables it.
+
+`sendosc [Client IP] [Client PORT] /startCapture i [1/0]`
+
+
+
+#### Change Client
+
+`sendosc [Client IP] [Client PORT] /changeClient s [new IP] i [new PORT]`
 
 
 
