@@ -158,17 +158,17 @@ pip install -r requirements.txt
 python index.py
 ```
 
-### Operating
+### Usage
 
-The udp port ``53534``is kinda fix, and refers to the computer (ip) where the script is running. The *ClientIP* is where the landm,arks, reading, results... etc. are sent.
+The udp port ``53534``is kinda fix, and refers to the computer (ip) where the script is running. The *ClientIP* is where the landm,arks, reading, results... etc. are sent. One can change the ClienIP and port in ``server_config.py``.
 
-Change the ClienIP and port in ``server_config.py``.
+In order to run the application, go to the appropriate *.venv* and run:
 
 ```python
 python index.py
 ```
 
-Within that script, the following commands (accessible via OSC) are implemented. All of them can be run using the following osc message syntax:
+Using a different terminal window, one can start/stop and configure different settings using the following commands (via OSC). All of them can be run using the following osc message syntax:
 
 ``sendosc [Client IPadress] [Client port] /Command [optional: i 1]``
 
