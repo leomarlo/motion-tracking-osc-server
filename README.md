@@ -80,8 +80,6 @@ test = 1
 
 If everything seems fine, we can start working in the notebook :)
 
-
-
 ### OSC in Python
 
 In order to send/receive OSC data (according to this online documentation: [python-osc · PyPI](https://pypi.org/project/python-osc/)).
@@ -91,12 +89,10 @@ pip install python-osc
 ```
 
 If you want to run the server just execute:
+
 ```
 python index.py
 ```
-
-
-
 
 ### Using the python interpreter:
 
@@ -152,6 +148,31 @@ I'll try installing MediaPipe fro MacOs first, according to these instructions:
 
 [MediaPipe#installing-on-macos](https://google.github.io/mediapipe/getting_started/install.html#installing-on-macos)
 
+
+
+```python
+pip install -r requirements.txt
+```
+
+```python
+python index.py
+```
+
+### Operating
+
+this...
+
+```python
+python index.py
+
+```
+
+
+
+
+
+
+
 ### How to find out my local python architecture (32/64 bits)
 
 Go into python console by typin `python` in the terminal (inside /MediaPipe folder)
@@ -172,23 +193,22 @@ exit()
 ## Saving Requirements
 
 When adding a new package, freeze the requirements into the `requirements.txt` file:
+
 ```
 pip freeze > requirements.txt
 ```
 
 Then when loading the new packages run:
+
 ```
 pip install -r requirements.txt
 ```
-
-
 
 ____
 
 # To-Do
 
 - Adapt to the Effects format
-
 
 # Contributors
 
