@@ -1,6 +1,11 @@
+from datetime import datetime, timedelta
 import cv2
 import mediapipe as mp
 import numpy as np
+from osc.client import Client
+from utils.math import Euclidean, sigmoid, rescale
+from config.server_config import CONFIG
+from utils.conversion import datetimeToMicroseconds
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -8,11 +13,40 @@ mp_pose = mp.solutions.pose
 
 
 class MediaPipe:
+
     pose = mp_pose.Pose(
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5) 
     
     cap: cv2.VideoCapture
+
+    cache = {
+      "center":{
+        "previous": np.array([0, 0]), 
+        "current": np.array([0, 0])
+        },
+      "size": {
+        "previous": 0,
+        "current": 0
+      },
+      "time": {
+        "previous": 0,
+        "current": 0
+      },
+      "max":{
+        "sizeVel": 0,
+        "centerVel": 0,
+        "size": 0
+      },
+      "min":{
+        "centerVel": 0,
+        "sizeVel": 0,
+        "size": 0
+      },
+      "MIDI_MAX": 127,
+      "SIGMOID_MAX": 5
+      
+    }
 
     def startCapture(*args):
         MediaPipe.cap = cv2.VideoCapture(0)
@@ -23,6 +57,11 @@ class MediaPipe:
     def handleCapture(with_drawing_landmarks=True):
         k = 0
         emb = FullBodyPoseEmbedder()
+        ## TODO: Outsource the min max setting
+        MediaPipe.cache["max"]["size"] = 2.3
+        MediaPipe.cache["max"]["sizeVel"] = 200 * (10**(-7))
+        MediaPipe.cache["max"]["centerVel"] = 10* (10**(-7))
+
         while MediaPipe.cap.isOpened():
             success, image = MediaPipe.cap.read()
             if not success:
@@ -40,20 +79,89 @@ class MediaPipe:
                     results.pose_landmarks,
                     mp_pose.POSE_CONNECTIONS,
                     landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
-            
+                cv2.imshow('MediaPipe Pose', cv2.flip(image, 1))
+                if (cv2.waitKey(5) & 0xFF == 27):
+                  break
             
             try:
-                newData = {emb._landmark_names[j] + "_" + coord: lm.__getattribute__(coord)  for j, lm in enumerate(results.pose_landmarks.landmark) for coord in ["x", "y"]}
+                # newData = {emb._landmark_names[j] + "_" + coord: lm.__getattribute__(coord)  for j, lm in enumerate(results.pose_landmarks.landmark) for coord in ["x", "y"]}
+                landmarks = emb._convert_to_numpy(results.pose_landmarks)
+                center = emb._get_pose_center(landmarks)
+                size = emb._get_pose_size(landmarks, emb._torso_size_multiplier)
+                MediaPipe.cache["size"]["previous"] = MediaPipe.cache["size"]["current"]
+                MediaPipe.cache["center"]["previous"] = MediaPipe.cache["center"]["current"]
+                MediaPipe.cache["time"]["previous"] = np.copy(MediaPipe.cache["time"]["current"])
+                MediaPipe.cache["size"]["current"] = size
+                MediaPipe.cache["center"]["current"] = center[0:2]
+                MediaPipe.cache["time"]["current"] = datetimeToMicroseconds(datetime.now())
+                timeDifference = MediaPipe.cache["time"]["current"] - MediaPipe.cache["time"]["previous"]
+                newcacheize = MediaPipe.cache["size"]["current"]
+                centerValBadCondition = (MediaPipe.cache["center"]["previous"][0]==0 and MediaPipe.cache["center"]["previous"][1]==0) or timeDifference==0
+                sizeDiffBadCondition = (MediaPipe.cache["size"]["previous"]==0 or timeDifference==0)
+                centerVel = (0 if centerValBadCondition 
+                             else Euclidean(
+                              MediaPipe.cache["center"]["current"],
+                              MediaPipe.cache["center"]["previous"]
+                            )/timeDifference)
+                sizeVel = (0 if sizeDiffBadCondition 
+                           else 
+                           np.abs(MediaPipe.cache["size"]["current"] - MediaPipe.cache["size"]["previous"]) / timeDifference)
+                
+                rescaledSize = round(sigmoid(x=rescale(
+                  x=newcacheize, 
+                  xmin=MediaPipe.cache["min"]["size"],
+                  xmax=MediaPipe.cache["max"]["size"], 
+                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"]))
+                rescaledCenterVel = round(sigmoid(x=rescale(
+                  x=centerVel, 
+                  xmin=MediaPipe.cache["min"]["centerVel"],
+                  xmax=MediaPipe.cache["max"]["centerVel"], 
+                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"]))
+                rescaledSizeVel = round(sigmoid(x=rescale(
+                  x=sizeVel, 
+                  xmin=MediaPipe.cache["min"]["sizeVel"],
+                  xmax=MediaPipe.cache["max"]["sizeVel"], 
+                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"]))
+
+                if not CONFIG.ONLY_RECEIVE:
+                  Client.client.send_message(
+                    Client.address["energy"], 
+                    rescaledSize
+                  )
+                
+                
+                  Client.client.send_message(
+                    Client.address["centervelocity"], 
+                    rescaledCenterVel
+                  )
+                  
+                  Client.client.send_message(
+                    Client.address["sizedifference"],
+                    rescaledSizeVel
+                  )
+
+                if k%40==1:
+                  # print(MediaPipe.cache["center"]["current"])
+                  # print(MediaPipe.cache["center"]["previous"])
+                  # print(timeDifference)
+                  # print('center', center)
+                  # print('size', size)
+                  print("cache size", newcacheize)
+                  print("center vel",  centerVel)
+                  print("sizeDiff", sizeVel)
+                  print("cache size resized", rescaledSize)
+                  print("center vel resized",  rescaledCenterVel)
+                  print("sizeVel resized", rescaledSizeVel)
                 # PoseData.append(newData)
-                if k<1:
-                    print('all data', newData)
+                # if k<1:
+                #     print('all data', newData)
                     # print('all joints', emb._landmark_names)
             except Exception as e:
                 print(str(e))
             
             k += 1
-            if k>500:
-              break
+            # if k>500:
+            #   break
 
     
 
@@ -107,6 +215,9 @@ class FullBodyPoseEmbedder(object):
     embedding = self._get_pose_distance_embedding(landmarks)
 
     return embedding
+
+  def _convert_to_numpy(self, mediapipe_landmarks):
+    return np.array([([lm.x, lm.y, lm.z]) for lm in mediapipe_landmarks.landmark])
 
   def _normalize_pose_landmarks(self, landmarks):
     """Normalizes landmarks translation and scale."""
@@ -246,3 +357,293 @@ class FullBodyPoseEmbedder(object):
 
   def _get_distance(self, lmk_from, lmk_to):
     return lmk_to - lmk_from
+
+
+import csv
+import numpy as np
+import os
+
+class PoseSample(object):
+
+  def __init__(self, name, landmarks, class_name, embedding):
+    self.name = name
+    self.landmarks = landmarks
+    self.class_name = class_name
+    
+    self.embedding = embedding
+
+
+class PoseSampleOutlier(object):
+
+  def __init__(self, sample, detected_class, all_classes):
+    self.sample = sample
+    self.detected_class = detected_class
+    self.all_classes = all_classes
+
+class PoseClassifier(object):
+  """Classifies pose landmarks."""
+
+  def __init__(self,
+               pose_samples_folder,
+               pose_embedder,
+               file_extension='csv',
+               file_separator=',',
+               n_landmarks=33,
+               n_dimensions=3,
+               top_n_by_max_distance=30,
+               top_n_by_mean_distance=10,
+               axes_weights=(1., 1., 0.2)):
+    self._pose_embedder = pose_embedder
+    self._n_landmarks = n_landmarks
+    self._n_dimensions = n_dimensions
+    self._top_n_by_max_distance = top_n_by_max_distance
+    self._top_n_by_mean_distance = top_n_by_mean_distance
+    self._axes_weights = axes_weights
+
+    self._pose_samples = self._load_pose_samples(pose_samples_folder,
+                                                 file_extension,
+                                                 file_separator,
+                                                 n_landmarks,
+                                                 n_dimensions,
+                                                 pose_embedder)
+
+  def _load_pose_samples(self,
+                         pose_samples_folder,
+                         file_extension,
+                         file_separator,
+                         n_landmarks,
+                         n_dimensions,
+                         pose_embedder):
+    """Loads pose samples from a given folder.
+    
+    Required folder structure:
+      neutral_standing.csv
+      pushups_down.csv
+      pushups_up.csv
+      squats_down.csv
+      ...
+
+    Required CSV structure:
+      sample_00001,x1,y1,z1,x2,y2,z2,....
+      sample_00002,x1,y1,z1,x2,y2,z2,....
+      ...
+    """
+    # Each file in the folder represents one pose class.
+    file_names = [name for name in os.listdir(pose_samples_folder) if name.endswith(file_extension)]
+
+    pose_samples = []
+    for file_name in file_names:
+      # Use file name as pose class name.
+      class_name = file_name[:-(len(file_extension) + 1)]
+      
+      # Parse CSV.
+      with open(os.path.join(pose_samples_folder, file_name)) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=file_separator)
+        for row in csv_reader:
+          assert len(row) == n_landmarks * n_dimensions + 1, 'Wrong number of values: {}'.format(len(row))
+          landmarks = np.array(row[1:], np.float32).reshape([n_landmarks, n_dimensions])
+          pose_samples.append(PoseSample(
+              name=row[0],
+              landmarks=landmarks,
+              class_name=class_name,
+              embedding=pose_embedder(landmarks),
+          ))
+
+    return pose_samples
+
+  def find_pose_sample_outliers(self):
+    """Classifies each sample against the entire database."""
+    # Find outliers in target poses
+    outliers = []
+    for sample in self._pose_samples:
+      # Find nearest poses for the target one.
+      pose_landmarks = sample.landmarks.copy()
+      pose_classification = self.__call__(pose_landmarks)
+      class_names = [class_name for class_name, count in pose_classification.items() if count == max(pose_classification.values())]
+
+      # Sample is an outlier if nearest poses have different class or more than
+      # one pose class is detected as nearest.
+      if sample.class_name not in class_names or len(class_names) != 1:
+        outliers.append(PoseSampleOutlier(sample, class_names, pose_classification))
+
+    return outliers
+
+  def __call__(self, pose_landmarks):
+    """Classifies given pose.
+
+    Classification is done in two stages:
+      * First we pick top-N samples by MAX distance. It allows to remove samples
+        that are almost the same as given pose, but has few joints bent in the
+        other direction.
+      * Then we pick top-N samples by MEAN distance. After outliers are removed
+        on a previous step, we can pick samples that are closes on average.
+    
+    Args:
+      pose_landmarks: NumPy array with 3D landmarks of shape (N, 3).
+
+    Returns:
+      Dictionary with count of nearest pose samples from the database. Sample:
+        {
+          'pushups_down': 8,
+          'pushups_up': 2,
+        }
+    """
+    # Check that provided and target poses have the same shape.
+    assert pose_landmarks.shape == (self._n_landmarks, self._n_dimensions), 'Unexpected shape: {}'.format(pose_landmarks.shape)
+
+    # Get given pose embedding.
+    pose_embedding = self._pose_embedder(pose_landmarks)
+    flipped_pose_embedding = self._pose_embedder(pose_landmarks * np.array([-1, 1, 1]))
+
+    # Filter by max distance.
+    #
+    # That helps to remove outliers - poses that are almost the same as the
+    # given one, but has one joint bent into another direction and actually
+    # represnt a different pose class.
+    max_dist_heap = []
+    for sample_idx, sample in enumerate(self._pose_samples):
+      max_dist = min(
+          np.max(np.abs(sample.embedding - pose_embedding) * self._axes_weights),
+          np.max(np.abs(sample.embedding - flipped_pose_embedding) * self._axes_weights),
+      )
+      max_dist_heap.append([max_dist, sample_idx])
+
+    max_dist_heap = sorted(max_dist_heap, key=lambda x: x[0])
+    max_dist_heap = max_dist_heap[:self._top_n_by_max_distance]
+
+    # Filter by mean distance.
+    #
+    # After removing outliers we can find the nearest pose by mean distance.
+    mean_dist_heap = []
+    for _, sample_idx in max_dist_heap:
+      sample = self._pose_samples[sample_idx]
+      mean_dist = min(
+          np.mean(np.abs(sample.embedding - pose_embedding) * self._axes_weights),
+          np.mean(np.abs(sample.embedding - flipped_pose_embedding) * self._axes_weights),
+      )
+      mean_dist_heap.append([mean_dist, sample_idx])
+
+    mean_dist_heap = sorted(mean_dist_heap, key=lambda x: x[0])
+    mean_dist_heap = mean_dist_heap[:self._top_n_by_mean_distance]
+
+    # Collect results into map: (class_name -> n_samples)
+    class_names = [self._pose_samples[sample_idx].class_name for _, sample_idx in mean_dist_heap]
+    result = {class_name: class_names.count(class_name) for class_name in set(class_names)}
+
+    return result
+
+  
+class EMADictSmoothing(object):
+  """Smoothes pose classification."""
+
+  def __init__(self, window_size=10, alpha=0.2):
+    self._window_size = window_size
+    self._alpha = alpha
+
+    self._data_in_window = []
+
+  def __call__(self, data):
+    """Smoothes given pose classification.
+
+    Smoothing is done by computing Exponential Moving Average for every pose
+    class observed in the given time window. Missed pose classes arre replaced
+    with 0.
+    
+    Args:
+      data: Dictionary with pose classification. Sample:
+          {
+            'pushups_down': 8,
+            'pushups_up': 2,
+          }
+
+    Result:
+      Dictionary in the same format but with smoothed and float instead of
+      integer values. Sample:
+        {
+          'pushups_down': 8.3,
+          'pushups_up': 1.7,
+        }
+    """
+    # Add new data to the beginning of the window for simpler code.
+    self._data_in_window.insert(0, data)
+    self._data_in_window = self._data_in_window[:self._window_size]
+
+    # Get all keys.
+    keys = set([key for data in self._data_in_window for key, _ in data.items()])
+
+    # Get smoothed values.
+    smoothed_data = dict()
+    for key in keys:
+      factor = 1.0
+      top_sum = 0.0
+      bottom_sum = 0.0
+      for data in self._data_in_window:
+        value = data[key] if key in data else 0.0
+
+        top_sum += factor * value
+        bottom_sum += factor
+
+        # Update factor.
+        factor *= (1.0 - self._alpha)
+
+      smoothed_data[key] = top_sum / bottom_sum
+
+    return smoothed_data
+
+class RepetitionCounter(object):
+  """Counts number of repetitions of given target pose class."""
+
+  def __init__(self, class_name, enter_threshold=6, exit_threshold=4):
+    self._class_name = class_name
+
+    # If pose counter passes given threshold, then we enter the pose.
+    self._enter_threshold = enter_threshold
+    self._exit_threshold = exit_threshold
+
+    # Either we are in given pose or not.
+    self._pose_entered = False
+
+    # Number of times we exited the pose.
+    self._n_repeats = 0
+
+  @property
+  def n_repeats(self):
+    return self._n_repeats
+
+  def __call__(self, pose_classification):
+    """Counts number of repetitions happend until given frame.
+
+    We use two thresholds. First you need to go above the higher one to enter
+    the pose, and then you need to go below the lower one to exit it. Difference
+    between the thresholds makes it stable to prediction jittering (which will
+    cause wrong counts in case of having only one threshold).
+    
+    Args:
+      pose_classification: Pose classification dictionary on current frame.
+        Sample:
+          {
+            'pushups_down': 8.3,
+            'pushups_up': 1.7,
+          }
+
+    Returns:
+      Integer counter of repetitions.
+    """
+    # Get pose confidence.
+    pose_confidence = 0.0
+    if self._class_name in pose_classification:
+      pose_confidence = pose_classification[self._class_name]
+
+    # On the very first frame or if we were out of the pose, just check if we
+    # entered it on this frame and update the state.
+    if not self._pose_entered:
+      self._pose_entered = pose_confidence > self._enter_threshold
+      return self._n_repeats
+
+    # If we were in the pose and are exiting it, then increase the counter and
+    # update the state.
+    if pose_confidence < self._exit_threshold:
+      self._n_repeats += 1
+      self._pose_entered = False
+
+    return self._n_repeats
