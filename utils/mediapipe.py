@@ -2,10 +2,18 @@ from datetime import datetime, timedelta
 import cv2
 import mediapipe as mp
 import numpy as np
+from config.db_config import DBCONFIG
+from sqlalchemy.orm import sessionmaker
+from db.session import RecordingSession
 from osc.client import Client
-from utils.math import Euclidean, sigmoid, rescale
+from utils.math import distance, sigmoid, rescale, euclidean
 from config.server_config import CONFIG
 from utils.conversion import datetimeToMicroseconds
+
+
+from db.gyro import Gyro
+from db.gyroTest import GyroTest3
+from db.utils import storeGyroEnergyData
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -33,15 +41,36 @@ class MediaPipe:
         "previous": 0,
         "current": 0
       },
+      "mobiletime": {
+        "previous": 0,
+        "current": 0
+      },
+      "gyroEnergyDeriv": {
+        "alpha": 0.1,
+        "oldGyroEnergyValue": 0,
+        "oldGyroEnergyDerivEWMA": 0,
+        "oldScaledGyroEWADerivative": 0,
+      },
+      "gyroEnergy": {
+        "alpha": 0.015,
+        "oldEWAEnergy": 0,
+        "newEWAEnergy": 0
+      }, 
       "max":{
         "sizeVel": 0,
         "centerVel": 0,
-        "size": 0
+        "size": 0,
+        "gyroEnergy":12,
+        "gyroEnergyEWADeriv": 4 * (10 **(-16)),
+        "gyroEnergyDeriv": 3 * (10**(-15))
       },
       "min":{
         "centerVel": 0,
         "sizeVel": 0,
-        "size": 0
+        "size": 0,
+        "gyroEnergy":2,
+        "gyroEnergyEWADeriv": 0,
+        "gyroEnergyDeriv": 10**(-17)
       },
       "MIDI_MAX": 127,
       "SIGMOID_MAX": 5,
@@ -67,6 +96,148 @@ class MediaPipe:
     def destroyWindow():
         # cv2.destroyAllWindows()
         cv2.destroyWindow("Pose"  + str(MediaPipe.cache["CAPTURE_INDEX"]))
+
+    def calculateMobileEnergyAndDeriv(args):
+      ## TODO: THOIS NEEDS TO GO INTO MOBILE.PY!!!
+      MediaPipe.cache["mobiletime"]["previous"] = np.copy(MediaPipe.cache["time"]["current"])
+      MediaPipe.cache["mobiletime"]["current"] = datetimeToMicroseconds(datetime.now())
+      timeDifference = MediaPipe.cache["mobiletime"]["current"] - MediaPipe.cache["mobiletime"]["previous"]
+      
+      # MediaPipe.cache["min"]["gyroEnergy"] = 2
+      # MediaPipe.cache["max"]["gyroEnergy"] = 12.0
+      unscaledEnergy = euclidean(np.array(args[1:]))
+      scaledEnergy = sigmoid(x=rescale(
+                  x=unscaledEnergy, 
+                  xmin=MediaPipe.cache["min"]["gyroEnergy"],
+                  xmax=MediaPipe.cache["max"]["gyroEnergy"], 
+                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"])
+      gyroEnergyDerivative = (unscaledEnergy - MediaPipe.cache["gyroEnergyDeriv"]["oldGyroEnergyValue"]) / timeDifference 
+      MediaPipe.cache["gyroEnergyDeriv"]["oldGyroEnergyValue"] = unscaledEnergy
+      scaledGyroDerivative = sigmoid(x=rescale(
+                  x=np.abs(gyroEnergyDerivative), 
+                  xmin=MediaPipe.cache["min"]["gyroEnergyDeriv"],
+                  xmax=MediaPipe.cache["max"]["gyroEnergyDeriv"], 
+                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"])
+
+      alphaDeriv = MediaPipe.cache["gyroEnergyDeriv"]["alpha"]
+      oldGyroEnergyDerivEWMA = MediaPipe.cache["gyroEnergyDeriv"]["oldGyroEnergyDerivEWMA"]       
+      newGyroEnergyDerivEWMA =  alphaDeriv * scaledGyroDerivative + ( 1 - alphaDeriv ) * oldGyroEnergyDerivEWMA
+      MediaPipe.cache["gyroEnergyDeriv"]["oldGyroEnergyDerivEWMA"] = newGyroEnergyDerivEWMA
+      
+      alpha = MediaPipe.cache["gyroEnergy"]["alpha"]
+      oldEWAEnergy = MediaPipe.cache["gyroEnergy"]["oldEWAEnergy"] 
+      newEWAEnergy = alpha * scaledEnergy + (1-alpha) * oldEWAEnergy
+      MediaPipe.cache["gyroEnergy"]["oldEWAEnergy"] = newEWAEnergy
+      # print('ewa difference', newEWAEnergy - oldEWAEnergy)
+      GyroEWADerivative = np.abs((newEWAEnergy - oldEWAEnergy) / timeDifference)
+      # print('GyroEWADerivative', GyroEWADerivative)
+      
+      newScaledGyroEWADerivative = sigmoid(x=rescale(
+                  x=GyroEWADerivative, 
+                  xmin=MediaPipe.cache["min"]["gyroEnergyEWADeriv"],
+                  xmax=MediaPipe.cache["max"]["gyroEnergyEWADeriv"], 
+                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"])
+
+      EWAOfScaledGyroEWADerivative = ( alphaDeriv ) * newScaledGyroEWADerivative + ( 1 - alphaDeriv) * MediaPipe.cache["gyroEnergyDeriv"]["oldScaledGyroEWADerivative"]
+      MediaPipe.cache["gyroEnergyDeriv"]["oldScaledGyroEWADerivative"] = EWAOfScaledGyroEWADerivative
+      
+      return {
+        "EnergyDerivative":gyroEnergyDerivative,
+        "scaledEnergy": scaledEnergy,
+        "scaledEnergyDerivative": scaledGyroDerivative,
+        "ewmaEnergy": newEWAEnergy,
+        "ewmaEnergyDerivative": newGyroEnergyDerivEWMA,
+        "DerivativeEWMAEnergy": GyroEWADerivative,
+        "scaledDerivativeEWMAEnergy": newScaledGyroEWADerivative,
+        "EWAOfScaledGyroEWADerivative": EWAOfScaledGyroEWADerivative
+      }
+        
+
+    def computeAllGyroEnergies(args):
+
+      energyValues = MediaPipe.calculateMobileEnergyAndDeriv(args)
+      
+      if DBCONFIG.STORE_RECORDINGS_IN_DB['gyro']:
+        DBSession = sessionmaker(bind=DBCONFIG.engine)
+        session = DBSession()
+        # session = DBCONFIG.DBSession()
+        recordingid = session.query(RecordingSession).order_by(RecordingSession.id.desc()).first()
+        print('recordingid', recordingid.id)
+        # gyroTest = dict(
+        #   sessionid=recordingid.id,
+        #   timestamp_in_microsecs=datetimeToMicroseconds(datetime.now()),
+        #   rounded_scaled_ewma_gyroenergy=round(energyValues["ewmaEnergy"]),
+        #   gyro1=args[1]
+        # )
+        # gt = GyroTest3(**gyroTest)
+
+        gyroData = dict(
+          sessionid=recordingid.id,
+          timestamp_in_microsecs=datetimeToMicroseconds(datetime.now()),
+          gyro1=args[1],
+          gyro2=args[2],
+          gyro3=args[3],
+          rounded_scaled_ewma_gyroenergy=energyValues["ewmaEnergy"],
+          scaled_gyroenergy=energyValues["scaledEnergy"],
+          rounded_ewma_of_scaled_derivative_of_ewma_gyroenergy=round(energyValues["EWAOfScaledGyroEWADerivative"]),
+          alpha_gyroenergy=MediaPipe.cache["gyroEnergy"]["alpha"],
+          min_gyroenergy_param=MediaPipe.cache["min"]["gyroEnergy"],
+          max_gyroenergy_param=MediaPipe.cache["max"]["gyroEnergy"],
+          alpha_ewma_derivative_of_gyroenergy=MediaPipe.cache["gyroEnergyDeriv"]["alpha"],
+          min_ewma_derivative_of_gyroenergy=MediaPipe.cache["min"]["gyroEnergyEWADeriv"],
+          max_ewma_derivative_of_gyroenergy=MediaPipe.cache["max"]["gyroEnergyEWADeriv"]
+        )
+
+     
+        # print('gyrodata', gyroData)
+        new_gyro_entry = Gyro(**gyroData)
+        # print('new gyro data', dir(new_gyro_entry))
+        session.add(new_gyro_entry)
+        # session.add(gt)
+        session.commit()
+        session.close()
+
+        if CONFIG.verbosity>=2:
+          # print('scaled derivative', energyValues["EWAOfScaledGyroEWADerivative"])
+          None
+
+
+      if not CONFIG.ONLY_RECEIVE:
+          Client.client.send_message(
+              Client.address["gyroenergy"], 
+              round(energyValues["scaledEnergy"])
+          )
+          Client.client.send_message(
+              Client.address["gyroEnergyDerivative"],
+              round(energyValues["scaledEnergyDerivative"])
+          )
+          Client.client.send_message(
+              Client.address["gyroEWMAEnergy"], 
+              round(energyValues["ewmaEnergy"])
+          )
+          Client.client.send_message(
+              Client.address["gyroEWMAEnergyDerivative"], 
+              round(energyValues["ewmaEnergyDerivative"])
+          )
+          Client.client.send_message(
+              Client.address["gyroEWMAOfEWMADerivative"], 
+              round(energyValues["EWAOfScaledGyroEWADerivative"])
+          )
+    
+    # def EWMAMobileEnergyAndDeriv(args):
+
+    #   alpha = MediaPipe.cache["gyroEnergy"]["alpha"] 
+    #   newEnergy = MediaPipe.calculateMobileEnergyAndDeriv(args)
+    #   oldEWAEnergy = MediaPipe.cache["gyroEnergy"]["oldEWAEnergy"] 
+    #   newEWAEnergy = alpha * newEnergy + (1-alpha) * oldEWAEnergy
+    #   MediaPipe.cache["gyroEnergy"]["oldEWAEnergy"] = newEWAEnergy
+
+    #   return (
+    #     round(newEWAEnergy),
+    #     (newEWAEnergy - oldEWAEnergy) / timeDifference
+    #   )
+
+      
 
     def handleCapture(with_drawing_landmarks=True):
         k = 0
@@ -113,7 +284,7 @@ class MediaPipe:
                 centerValBadCondition = (MediaPipe.cache["center"]["previous"][0]==0 and MediaPipe.cache["center"]["previous"][1]==0) or timeDifference==0
                 sizeDiffBadCondition = (MediaPipe.cache["size"]["previous"]==0 or timeDifference==0)
                 centerVel = (0 if centerValBadCondition 
-                             else Euclidean(
+                             else distance(
                               MediaPipe.cache["center"]["current"],
                               MediaPipe.cache["center"]["previous"]
                             )/timeDifference)

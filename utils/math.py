@@ -1,7 +1,10 @@
 import numpy as np
 
-def Euclidean(x,y):
-    return np.sqrt((y[0]-x[0])**2 + (y[1] - x[1])**2)
+def euclidean(x):
+    return np.sqrt(np.sum(np.power(x,2)))
+
+def distance(x,y):
+    return euclidean(x-y)
 
 
 def rescale(x, xmin, xmax, D):
