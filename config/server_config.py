@@ -10,6 +10,8 @@ class CONFIG:
     clientPort = 53534
     ONLY_RECEIVE = False
     STOP_SERVER = False
+    RECORD_MOBILE_DATA = True
+    STORE_RECORDINGS_IN_DB = True
     verbosity = 2
 
     # def __init__(self) -> None:
@@ -35,6 +37,14 @@ class CONFIG:
 
     def stopServer():
         CONFIG.STOP_SERVER = True
+    
+    def startRecordingMobile():
+        CONFIG.RECORD_MOBILE_DATA = True
+
+    def stopRecordingMobile():
+        CONFIG.RECORD_MOBILE_DATA = True
+    
+    
 # config = CONFIG()
 # config.init()
 # CONFIG.init()
