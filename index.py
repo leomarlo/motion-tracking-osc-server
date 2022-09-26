@@ -4,9 +4,10 @@ from config.server_config import CONFIG
 from config.db_config import DBCONFIG
 from utils.math import euclidean
 from osc.client import Client
+from utils.cache import Cache
 # from sqlalchemy import create_engine
 # from sqlalchemy import update
-# from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker
 # from db.base import Base
 # from db.timeDifference import TimeDifference
 # from db.dmxUniverse import DMXUniverse
@@ -53,27 +54,33 @@ def change_client(address, *args):
     # Client.client = SimpleUDPClient(CONFIG.clientIP, CONFIG.clientPort) 
 
 def start_video_capture(address, *args):
+    print('args', args)
+    print('args are', args[0], args[1]==1)
     if args[0]==1:
+        print('alreadyRunningRecording', DBCONFIG.isCurrentDBSessionOngoing())
         alreadyRunningRecording = DBCONFIG.isCurrentDBSessionOngoing()
         DBCONFIG.startStoringToDataBase('mediapipePose')
+        print('alreadyRunningRecording', DBCONFIG.isCurrentDBSessionOngoing())
         if not alreadyRunningRecording:
-            session = DBCONFIG.setDBSession()
+            DBSession = sessionmaker(bind=DBCONFIG.engine)
+            session = DBSession()
             rememberThisRecordingSession(session)
             session.close()
     MediaPipe.startCapture(0)
-    MediaPipe.handleCapture(with_drawing_landmarks=(args[1]==1))
+    landmarkflag = args[1]==1
+    MediaPipe.handleCapture(with_drawing_landmarks=landmarkflag)
 
 def stop_video_capture(address, *args):
     MediaPipe.stopCapture()
     DBCONFIG.stopStoringToDataBase('mediapipePose')
 
 def start_capture(address, *args):
-    start_mobile_capture(address,args)
-    start_video_capture(address,args)
+    start_mobile_capture(address,*args)
+    start_video_capture(address,*args)
 
 def stop_capture(address, *args):
-    stop_mobile_capture(address,args)
-    stop_video_capture(address,args)
+    stop_mobile_capture(address,*args)
+    stop_video_capture(address,*args)
 
 def stop_server(address, *args):
     CONFIG.stopServer()
@@ -108,11 +115,12 @@ def stop_writing_to_db(address, *args):
 
 def handle_mobile_data(address, *args):
     if args[0] == 'gyro':
-        # print(args)
-        # gyrationAlongVerticalAxis = args[3]
-        # gyrationLongAxis = args[2]
-        # gyrationShortAxis = args[1]
         MediaPipe.computeAllGyroEnergies(args)
+
+def change_parameter(address, *args):
+    if args[0]=='alpha_gyro':
+        Cache["gyroEnergy"]["alpha"] = args[1]
+
 
 def default_handler(address, *args):
     print(f"DEFAULT {address}: {args}")
@@ -144,6 +152,7 @@ dispatcher.map("/changeClient", change_client)
 dispatcher.map("/printClientInfo", print_client_port_and_address)
 dispatcher.map("/startDbWrting", start_writing_to_db)
 dispatcher.map("/stopDbWrting", stop_writing_to_db)
+dispatcher.map("/changeParameter", change_parameter)
 # dispatcher.map("/velocity", )
 
 dispatcher.set_default_handler(default_handler)

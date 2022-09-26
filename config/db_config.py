@@ -20,14 +20,15 @@ class DBCONFIG:
         if table==None:
             for tbl in DBCONFIG.STORE_RECORDINGS_IN_DB:
                 DBCONFIG.STORE_RECORDINGS_IN_DB[tbl] = True
-        DBCONFIG.STORE_RECORDINGS_IN_DB[table] = True
+        else :
+            DBCONFIG.STORE_RECORDINGS_IN_DB[table] = True
     
     def stopStoringToDataBase(table=None):
         if table==None:
             for tbl in DBCONFIG.STORE_RECORDINGS_IN_DB:
                 DBCONFIG.STORE_RECORDINGS_IN_DB[tbl] = False
-
-        DBCONFIG.STORE_RECORDINGS_IN_DB[table] = False
+        else:
+            DBCONFIG.STORE_RECORDINGS_IN_DB[table] = False
     
     def isCurrentDBSessionOngoing():
         return any(DBCONFIG.STORE_RECORDINGS_IN_DB.values())

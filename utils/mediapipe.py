@@ -12,8 +12,10 @@ from utils.conversion import datetimeToMicroseconds
 
 
 from db.gyro import Gyro
-from db.gyroTest import GyroTest3
+from db.pose import MediapipePose
+# from db.gyroTest import GyroTest3
 from db.utils import storeGyroEnergyData
+from utils.cache import Cache
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -28,118 +30,68 @@ class MediaPipe:
     
     cap: cv2.VideoCapture
 
-    cache = {
-      "center":{
-        "previous": np.array([0, 0]), 
-        "current": np.array([0, 0])
-        },
-      "size": {
-        "previous": 0,
-        "current": 0
-      },
-      "time": {
-        "previous": 0,
-        "current": 0
-      },
-      "mobiletime": {
-        "previous": 0,
-        "current": 0
-      },
-      "gyroEnergyDeriv": {
-        "alpha": 0.1,
-        "oldGyroEnergyValue": 0,
-        "oldGyroEnergyDerivEWMA": 0,
-        "oldScaledGyroEWADerivative": 0,
-      },
-      "gyroEnergy": {
-        "alpha": 0.015,
-        "oldEWAEnergy": 0,
-        "newEWAEnergy": 0
-      }, 
-      "max":{
-        "sizeVel": 0,
-        "centerVel": 0,
-        "size": 0,
-        "gyroEnergy":12,
-        "gyroEnergyEWADeriv": 4 * (10 **(-16)),
-        "gyroEnergyDeriv": 3 * (10**(-15))
-      },
-      "min":{
-        "centerVel": 0,
-        "sizeVel": 0,
-        "size": 0,
-        "gyroEnergy":2,
-        "gyroEnergyEWADeriv": 0,
-        "gyroEnergyDeriv": 10**(-17)
-      },
-      "MIDI_MAX": 127,
-      "SIGMOID_MAX": 5,
-      "CAPTURE_INDEX": 0,
-      "SHOW_WINDOW": True
-    }
-
     def startCapture(*args):
-        MediaPipe.cache["SHOW_WINDOW"] = (args[0]==1)
-        if MediaPipe.cache["SHOW_WINDOW"]:
+        Cache["SHOW_WINDOW"] = (args[0]==1)
+        if Cache["SHOW_WINDOW"]:
           MediaPipe.createWindow()
         MediaPipe.cap = cv2.VideoCapture(0)
     
     def stopCapture():
         MediaPipe.cap.release()
-        if MediaPipe.cache["SHOW_WINDOW"]:
+        if Cache["SHOW_WINDOW"]:
           MediaPipe.destroyWindow()
-        MediaPipe.cache["CAPTURE_INDEX"] += 1
+        Cache["CAPTURE_INDEX"] += 1
 
     def createWindow():
-        cv2.namedWindow("Pose" + str(MediaPipe.cache["CAPTURE_INDEX"]), cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow("Pose" + str(Cache["CAPTURE_INDEX"]), cv2.WINDOW_AUTOSIZE)
 
     def destroyWindow():
         # cv2.destroyAllWindows()
-        cv2.destroyWindow("Pose"  + str(MediaPipe.cache["CAPTURE_INDEX"]))
+        cv2.destroyWindow("Pose"  + str(Cache["CAPTURE_INDEX"]))
 
     def calculateMobileEnergyAndDeriv(args):
       ## TODO: THOIS NEEDS TO GO INTO MOBILE.PY!!!
-      MediaPipe.cache["mobiletime"]["previous"] = np.copy(MediaPipe.cache["time"]["current"])
-      MediaPipe.cache["mobiletime"]["current"] = datetimeToMicroseconds(datetime.now())
-      timeDifference = MediaPipe.cache["mobiletime"]["current"] - MediaPipe.cache["mobiletime"]["previous"]
+      Cache["mobiletime"]["previous"] = np.copy(Cache["time"]["current"])
+      Cache["mobiletime"]["current"] = datetimeToMicroseconds(datetime.now())
+      timeDifference = Cache["mobiletime"]["current"] - Cache["mobiletime"]["previous"]
       
-      # MediaPipe.cache["min"]["gyroEnergy"] = 2
-      # MediaPipe.cache["max"]["gyroEnergy"] = 12.0
+      # Cache["min"]["gyroEnergy"] = 2
+      # Cache["max"]["gyroEnergy"] = 12.0
       unscaledEnergy = euclidean(np.array(args[1:]))
       scaledEnergy = sigmoid(x=rescale(
                   x=unscaledEnergy, 
-                  xmin=MediaPipe.cache["min"]["gyroEnergy"],
-                  xmax=MediaPipe.cache["max"]["gyroEnergy"], 
-                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"])
-      gyroEnergyDerivative = (unscaledEnergy - MediaPipe.cache["gyroEnergyDeriv"]["oldGyroEnergyValue"]) / timeDifference 
-      MediaPipe.cache["gyroEnergyDeriv"]["oldGyroEnergyValue"] = unscaledEnergy
+                  xmin=Cache["min"]["gyroEnergy"],
+                  xmax=Cache["max"]["gyroEnergy"], 
+                  D=Cache["SIGMOID_MAX"]), M=Cache["MIDI_MAX"])
+      gyroEnergyDerivative = (unscaledEnergy - Cache["gyroEnergyDeriv"]["oldGyroEnergyValue"]) / timeDifference 
+      Cache["gyroEnergyDeriv"]["oldGyroEnergyValue"] = unscaledEnergy
       scaledGyroDerivative = sigmoid(x=rescale(
                   x=np.abs(gyroEnergyDerivative), 
-                  xmin=MediaPipe.cache["min"]["gyroEnergyDeriv"],
-                  xmax=MediaPipe.cache["max"]["gyroEnergyDeriv"], 
-                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"])
+                  xmin=Cache["min"]["gyroEnergyDeriv"],
+                  xmax=Cache["max"]["gyroEnergyDeriv"], 
+                  D=Cache["SIGMOID_MAX"]), M=Cache["MIDI_MAX"])
 
-      alphaDeriv = MediaPipe.cache["gyroEnergyDeriv"]["alpha"]
-      oldGyroEnergyDerivEWMA = MediaPipe.cache["gyroEnergyDeriv"]["oldGyroEnergyDerivEWMA"]       
+      alphaDeriv = Cache["gyroEnergyDeriv"]["alpha"]
+      oldGyroEnergyDerivEWMA = Cache["gyroEnergyDeriv"]["oldGyroEnergyDerivEWMA"]       
       newGyroEnergyDerivEWMA =  alphaDeriv * scaledGyroDerivative + ( 1 - alphaDeriv ) * oldGyroEnergyDerivEWMA
-      MediaPipe.cache["gyroEnergyDeriv"]["oldGyroEnergyDerivEWMA"] = newGyroEnergyDerivEWMA
+      Cache["gyroEnergyDeriv"]["oldGyroEnergyDerivEWMA"] = newGyroEnergyDerivEWMA
       
-      alpha = MediaPipe.cache["gyroEnergy"]["alpha"]
-      oldEWAEnergy = MediaPipe.cache["gyroEnergy"]["oldEWAEnergy"] 
+      alpha = Cache["gyroEnergy"]["alpha"]
+      oldEWAEnergy = Cache["gyroEnergy"]["oldEWAEnergy"] 
       newEWAEnergy = alpha * scaledEnergy + (1-alpha) * oldEWAEnergy
-      MediaPipe.cache["gyroEnergy"]["oldEWAEnergy"] = newEWAEnergy
+      Cache["gyroEnergy"]["oldEWAEnergy"] = newEWAEnergy
       # print('ewa difference', newEWAEnergy - oldEWAEnergy)
       GyroEWADerivative = np.abs((newEWAEnergy - oldEWAEnergy) / timeDifference)
       # print('GyroEWADerivative', GyroEWADerivative)
       
       newScaledGyroEWADerivative = sigmoid(x=rescale(
                   x=GyroEWADerivative, 
-                  xmin=MediaPipe.cache["min"]["gyroEnergyEWADeriv"],
-                  xmax=MediaPipe.cache["max"]["gyroEnergyEWADeriv"], 
-                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"])
+                  xmin=Cache["min"]["gyroEnergyEWADeriv"],
+                  xmax=Cache["max"]["gyroEnergyEWADeriv"], 
+                  D=Cache["SIGMOID_MAX"]), M=Cache["MIDI_MAX"])
 
-      EWAOfScaledGyroEWADerivative = ( alphaDeriv ) * newScaledGyroEWADerivative + ( 1 - alphaDeriv) * MediaPipe.cache["gyroEnergyDeriv"]["oldScaledGyroEWADerivative"]
-      MediaPipe.cache["gyroEnergyDeriv"]["oldScaledGyroEWADerivative"] = EWAOfScaledGyroEWADerivative
+      EWAOfScaledGyroEWADerivative = ( alphaDeriv ) * newScaledGyroEWADerivative + ( 1 - alphaDeriv) * Cache["gyroEnergyDeriv"]["oldScaledGyroEWADerivative"]
+      Cache["gyroEnergyDeriv"]["oldScaledGyroEWADerivative"] = EWAOfScaledGyroEWADerivative
       
       return {
         "EnergyDerivative":gyroEnergyDerivative,
@@ -160,17 +112,7 @@ class MediaPipe:
       if DBCONFIG.STORE_RECORDINGS_IN_DB['gyro']:
         DBSession = sessionmaker(bind=DBCONFIG.engine)
         session = DBSession()
-        # session = DBCONFIG.DBSession()
         recordingid = session.query(RecordingSession).order_by(RecordingSession.id.desc()).first()
-        print('recordingid', recordingid.id)
-        # gyroTest = dict(
-        #   sessionid=recordingid.id,
-        #   timestamp_in_microsecs=datetimeToMicroseconds(datetime.now()),
-        #   rounded_scaled_ewma_gyroenergy=round(energyValues["ewmaEnergy"]),
-        #   gyro1=args[1]
-        # )
-        # gt = GyroTest3(**gyroTest)
-
         gyroData = dict(
           sessionid=recordingid.id,
           timestamp_in_microsecs=datetimeToMicroseconds(datetime.now()),
@@ -180,20 +122,15 @@ class MediaPipe:
           rounded_scaled_ewma_gyroenergy=energyValues["ewmaEnergy"],
           scaled_gyroenergy=energyValues["scaledEnergy"],
           rounded_ewma_of_scaled_derivative_of_ewma_gyroenergy=round(energyValues["EWAOfScaledGyroEWADerivative"]),
-          alpha_gyroenergy=MediaPipe.cache["gyroEnergy"]["alpha"],
-          min_gyroenergy_param=MediaPipe.cache["min"]["gyroEnergy"],
-          max_gyroenergy_param=MediaPipe.cache["max"]["gyroEnergy"],
-          alpha_ewma_derivative_of_gyroenergy=MediaPipe.cache["gyroEnergyDeriv"]["alpha"],
-          min_ewma_derivative_of_gyroenergy=MediaPipe.cache["min"]["gyroEnergyEWADeriv"],
-          max_ewma_derivative_of_gyroenergy=MediaPipe.cache["max"]["gyroEnergyEWADeriv"]
+          alpha_gyroenergy=Cache["gyroEnergy"]["alpha"],
+          min_gyroenergy_param=Cache["min"]["gyroEnergy"],
+          max_gyroenergy_param=Cache["max"]["gyroEnergy"],
+          alpha_ewma_derivative_of_gyroenergy=Cache["gyroEnergyDeriv"]["alpha"],
+          min_ewma_derivative_of_gyroenergy=Cache["min"]["gyroEnergyEWADeriv"],
+          max_ewma_derivative_of_gyroenergy=Cache["max"]["gyroEnergyEWADeriv"]
         )
-
-     
-        # print('gyrodata', gyroData)
         new_gyro_entry = Gyro(**gyroData)
-        # print('new gyro data', dir(new_gyro_entry))
         session.add(new_gyro_entry)
-        # session.add(gt)
         session.commit()
         session.close()
 
@@ -226,11 +163,11 @@ class MediaPipe:
     
     # def EWMAMobileEnergyAndDeriv(args):
 
-    #   alpha = MediaPipe.cache["gyroEnergy"]["alpha"] 
+    #   alpha = Cache["gyroEnergy"]["alpha"] 
     #   newEnergy = MediaPipe.calculateMobileEnergyAndDeriv(args)
-    #   oldEWAEnergy = MediaPipe.cache["gyroEnergy"]["oldEWAEnergy"] 
+    #   oldEWAEnergy = Cache["gyroEnergy"]["oldEWAEnergy"] 
     #   newEWAEnergy = alpha * newEnergy + (1-alpha) * oldEWAEnergy
-    #   MediaPipe.cache["gyroEnergy"]["oldEWAEnergy"] = newEWAEnergy
+    #   Cache["gyroEnergy"]["oldEWAEnergy"] = newEWAEnergy
 
     #   return (
     #     round(newEWAEnergy),
@@ -243,9 +180,9 @@ class MediaPipe:
         k = 0
         emb = FullBodyPoseEmbedder()
         ## TODO: Outsource the min max setting
-        MediaPipe.cache["max"]["size"] = 2.3
-        MediaPipe.cache["max"]["sizeVel"] = 200 * (10**(-7))
-        MediaPipe.cache["max"]["centerVel"] = 10* (10**(-7))
+        Cache["max"]["size"] = 2.3
+        Cache["max"]["sizeVel"] = 200 * (10**(-7))
+        Cache["max"]["centerVel"] = 10* (10**(-7))
 
         while MediaPipe.cap.isOpened():
             success, image = MediaPipe.cap.read()
@@ -264,7 +201,7 @@ class MediaPipe:
                     results.pose_landmarks,
                     mp_pose.POSE_CONNECTIONS,
                     landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
-                cv2.imshow("Pose" + str(MediaPipe.cache["CAPTURE_INDEX"]), cv2.flip(image, 1))
+                cv2.imshow("Pose" + str(Cache["CAPTURE_INDEX"]), cv2.flip(image, 1))
                 if (cv2.waitKey(5) & 0xFF == 27):
                   break
             
@@ -273,40 +210,40 @@ class MediaPipe:
                 landmarks = emb._convert_to_numpy(results.pose_landmarks)
                 center = emb._get_pose_center(landmarks)
                 size = emb._get_pose_size(landmarks, emb._torso_size_multiplier)
-                MediaPipe.cache["size"]["previous"] = MediaPipe.cache["size"]["current"]
-                MediaPipe.cache["center"]["previous"] = MediaPipe.cache["center"]["current"]
-                MediaPipe.cache["time"]["previous"] = np.copy(MediaPipe.cache["time"]["current"])
-                MediaPipe.cache["size"]["current"] = size
-                MediaPipe.cache["center"]["current"] = center[0:2]
-                MediaPipe.cache["time"]["current"] = datetimeToMicroseconds(datetime.now())
-                timeDifference = MediaPipe.cache["time"]["current"] - MediaPipe.cache["time"]["previous"]
-                newcacheize = MediaPipe.cache["size"]["current"]
-                centerValBadCondition = (MediaPipe.cache["center"]["previous"][0]==0 and MediaPipe.cache["center"]["previous"][1]==0) or timeDifference==0
-                sizeDiffBadCondition = (MediaPipe.cache["size"]["previous"]==0 or timeDifference==0)
+                Cache["size"]["previous"] = Cache["size"]["current"]
+                Cache["center"]["previous"] = Cache["center"]["current"]
+                Cache["time"]["previous"] = np.copy(Cache["time"]["current"])
+                Cache["size"]["current"] = size
+                Cache["center"]["current"] = center[0:2]
+                Cache["time"]["current"] = datetimeToMicroseconds(datetime.now())
+                timeDifference = Cache["time"]["current"] - Cache["time"]["previous"]
+                newcacheize = Cache["size"]["current"]
+                centerValBadCondition = (Cache["center"]["previous"][0]==0 and Cache["center"]["previous"][1]==0) or timeDifference==0
+                sizeDiffBadCondition = (Cache["size"]["previous"]==0 or timeDifference==0)
                 centerVel = (0 if centerValBadCondition 
                              else distance(
-                              MediaPipe.cache["center"]["current"],
-                              MediaPipe.cache["center"]["previous"]
+                              Cache["center"]["current"],
+                              Cache["center"]["previous"]
                             )/timeDifference)
                 sizeVel = (0 if sizeDiffBadCondition 
                            else 
-                           np.abs(MediaPipe.cache["size"]["current"] - MediaPipe.cache["size"]["previous"]) / timeDifference)
+                           np.abs(Cache["size"]["current"] - Cache["size"]["previous"]) / timeDifference)
                 
                 rescaledSize = round(sigmoid(x=rescale(
                   x=newcacheize, 
-                  xmin=MediaPipe.cache["min"]["size"],
-                  xmax=MediaPipe.cache["max"]["size"], 
-                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"]))
+                  xmin=Cache["min"]["size"],
+                  xmax=Cache["max"]["size"], 
+                  D=Cache["SIGMOID_MAX"]), M=Cache["MIDI_MAX"]))
                 rescaledCenterVel = round(sigmoid(x=rescale(
                   x=centerVel, 
-                  xmin=MediaPipe.cache["min"]["centerVel"],
-                  xmax=MediaPipe.cache["max"]["centerVel"], 
-                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"]))
+                  xmin=Cache["min"]["centerVel"],
+                  xmax=Cache["max"]["centerVel"], 
+                  D=Cache["SIGMOID_MAX"]), M=Cache["MIDI_MAX"]))
                 rescaledSizeVel = round(sigmoid(x=rescale(
                   x=sizeVel, 
-                  xmin=MediaPipe.cache["min"]["sizeVel"],
-                  xmax=MediaPipe.cache["max"]["sizeVel"], 
-                  D=MediaPipe.cache["SIGMOID_MAX"]), M=MediaPipe.cache["MIDI_MAX"]))
+                  xmin=Cache["min"]["sizeVel"],
+                  xmax=Cache["max"]["sizeVel"], 
+                  D=Cache["SIGMOID_MAX"]), M=Cache["MIDI_MAX"]))
 
                 if not CONFIG.ONLY_RECEIVE:
                   Client.client.send_message(
@@ -325,9 +262,37 @@ class MediaPipe:
                     rescaledSizeVel
                   )
 
+                if DBCONFIG.STORE_RECORDINGS_IN_DB['mediapipePose']:
+                  
+                  DBSession = sessionmaker(bind=DBCONFIG.engine)
+                  session = DBSession()
+                  recordingid = session.query(RecordingSession).order_by(RecordingSession.id.desc()).first()
+                  ts = datetimeToMicroseconds(datetime.now())
+                  # print('first lm', landmarks[0])
+                  for i, lm in enumerate(landmarks):
+                    poseData = dict(
+                      sessionid=recordingid.id,
+                      frameid=k,
+                      timestamp_in_microsecs=ts,
+                      x = lm[0],
+                      y = lm[1],
+                      z = lm[2],
+                      landmarkid = i,
+                      landmarkname = emb._landmark_names[i]
+                    )
+                    if k%40==1 and i==1:
+                      print('poseData', lm[0], lm[1])
+                      # None
+                    new_pose_entry = MediapipePose(**poseData)
+                    session.add(new_pose_entry)
+                    session.commit()
+                  
+                  session.close()
+                  
+
                 if k%40==1:
-                  # print(MediaPipe.cache["center"]["current"])
-                  # print(MediaPipe.cache["center"]["previous"])
+                  # print(Cache["center"]["current"])
+                  # print(Cache["center"]["previous"])
                   # print(timeDifference)
                   # print('center', center)
                   # print('size', size)
@@ -402,7 +367,7 @@ class FullBodyPoseEmbedder(object):
     return embedding
 
   def _convert_to_numpy(self, mediapipe_landmarks):
-    return np.array([([lm.x, lm.y, lm.z]) for lm in mediapipe_landmarks.landmark])
+    return np.array([[lm.x, lm.y, lm.z] for lm in mediapipe_landmarks.landmark])
 
   def _normalize_pose_landmarks(self, landmarks):
     """Normalizes landmarks translation and scale."""
