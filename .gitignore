@@ -43,6 +43,7 @@ Thumbs.db
 
 # Large media files
 *.mp4
+*.webm
 *.tiff
 *.avi
 *.flv
