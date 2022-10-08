@@ -1,0 +1,3 @@
+[submodule "frontend"]
+	path = frontend
+	url = https://AdrianArtacho@bitbucket.org/smoothspaces/frontend.git
