@@ -1,0 +1,3 @@
+[submodule "IGTSpython"]
+	path = IGTSpython
+	url = https://github.com/cruiseresearchgroup/IGTS-python.git
