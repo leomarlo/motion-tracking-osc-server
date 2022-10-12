@@ -1,3 +1,6 @@
 [submodule "frontend"]
 	path = frontend
 	url = https://AdrianArtacho@bitbucket.org/smoothspaces/frontend.git
+[submodule "parseannotations"]
+	path = parseannotations
+	url = https://AdrianArtacho@bitbucket.org/smoothspaces/parseannotations.git
